@@ -1,0 +1,24 @@
+name: MEBMobAI
+main: MengBao\MEBMobAI\Main
+version: 1.0.0
+api: 5.0.0
+author: MengBao
+description: 强大的生物AI插件，支持自定义生物和原版生物AI行为
+
+permissions:
+  mebmobai.command:
+    description: 允许使用MEBMobAI指令
+    default: op
+  mebmobai.aitest:
+    description: 允许使用AI测试指令
+    default: op
+
+commands:
+  mebma:
+    description: MEBMobAI主指令
+    usage: /mebma <spawn|list|remove> [args...]
+    permission: mebmobai.command
+  aitest:
+    description: AI系统测试指令
+    usage: /aitest <chase|patrol|demo|fly>
+    permission: mebmobai.aitest
