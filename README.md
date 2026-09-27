@@ -20,7 +20,7 @@
 ---
 
 ## ✨ 功能特性
-
+所有生物AI都会受MEBWroldProtect的生物行为规则控制。  
 ### 核心功能
 - **双AI系统**
   - 动作系统（Action System）：适用于自定义AI生物
