@@ -8,12 +8,14 @@ use MengBao\MEBMobAI\Command\MEBMACommand;
 use MengBao\MEBMobAI\Component\MobAIManager;
 use MengBao\MEBMobAI\Entity\MobRegistry;
 use MengBao\MEBMobAI\Entity\MEBZombie;
+use MengBao\MEBMobAI\Form\FormFactory;
 use MengBao\MEBMobAI\Listener\EntityListener;
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
 use pocketmine\entity\EntityDataHelper;
 use pocketmine\entity\EntityFactory;
 use pocketmine\nbt\tag\CompoundTag;
+use pocketmine\player\Player;
 use pocketmine\plugin\PluginBase;
 use pocketmine\utils\Config;
 use pocketmine\world\World;
@@ -25,6 +27,7 @@ class Main extends PluginBase
     private Config $vanillaAIConfig;
     private Config $customAIConfig;
     private MEBMACommand $command;
+    private FormFactory $formFactory;
 
     public function onEnable(): void
     {
@@ -39,6 +42,7 @@ class Main extends PluginBase
 
         $this->mobRegistry = new MobRegistry();
         $this->command = new MEBMACommand($this);
+        $this->formFactory = new FormFactory($this);
 
         // 注册命令
         $commandMap = $this->getServer()->getCommandMap();
@@ -67,6 +71,15 @@ class Main extends PluginBase
     {
         switch ($command->getName()) {
             case "mebma":
+                // 检查是否是GUI子命令
+                if (isset($args[0]) && strtolower($args[0]) === "gui") {
+                    if (!($sender instanceof Player)) {
+                        $sender->sendMessage("§c该命令只能由玩家执行");
+                        return true;
+                    }
+                    $this->formFactory->openMain($sender);
+                    return true;
+                }
                 return $this->command->execute($sender, $label, $args);
             case "aitest":
                 $testCommand = new \MengBao\MEBMobAI\Command\AITestCommand();
@@ -141,5 +154,13 @@ class Main extends PluginBase
     public function getCustomAIConfig(): Config
     {
         return $this->customAIConfig;
+    }
+
+    /**
+     * 获取表单工厂
+     */
+    public function getFormFactory(): FormFactory
+    {
+        return $this->formFactory;
     }
 }

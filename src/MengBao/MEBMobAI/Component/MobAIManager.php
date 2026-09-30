@@ -81,7 +81,7 @@ class MobAIManager
     /**
      * 检查生物是否可以行动（根据MEBWorldProtect设置）
      */
-    private static function canMobBehave(Living $entity): bool
+    public static function canMobBehave(Living $entity): bool
     {
         $world = $entity->getWorld();
         $worldName = $world->getFolderName();

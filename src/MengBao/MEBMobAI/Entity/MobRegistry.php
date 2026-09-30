@@ -50,7 +50,7 @@ class MobRegistry
 
     public function getRegisteredMobs(): array
     {
-        return array_keys($this->mobs);
+        return $this->mobs; // 返回完整的 id => class 数组
     }
 
     public function clear(): void

@@ -51,6 +51,26 @@ class EntityListener implements Listener
             return;
         }
 
+        // 尝试从NBT加载保存的AI数据
+        $savedAI = \MengBao\MEBMobAI\Component\MobAIComponent::loadFromNBT($entity);
+
+        if ($savedAI !== null) {
+            // 使用保存的AI数据，包括最大生命值
+            if (isset($savedAI["max_health"])) {
+                $entity->setMaxHealth((int)$savedAI["max_health"]);
+            }
+
+            MobAIManager::attachAI(
+                $entity,
+                $savedAI["hostile"],
+                $savedAI["speed"],
+                $savedAI["damage"],
+                [], // targetTypes 使用默认值
+                $savedAI["jump_height"]
+            );
+            return;
+        }
+
         // 获取生物配置并附加AI
         $aiConfig = $this->getAIConfigForEntity($entity);
 
@@ -239,6 +259,9 @@ class EntityListener implements Listener
             if (!($attacker instanceof Living)) {
                 return;
             }
+
+            // 设置击退冷却，防止AI立即覆盖击退效果
+            $aiComponent->setKnockbackCooldown(10); // 0.5秒
 
             // 中立生物反击逻辑：非敌对但有攻击力的生物
             if (!$aiComponent->isHostile() && $aiComponent->canAttack()) {

@@ -32,6 +32,7 @@ class MobAIComponent
     private float $jumpHeight = 0.5;
     private bool $isAngry = false;  // 是否处于愤怒状态（中立生物反击）
     private int $angerTimer = 0;    // 愤怒计时器（tick）
+    private int $knockbackCooldown = 0;  // 击退冷却，防止AI立即覆盖击退效果
 
     public function __construct(Living $entity, bool $hostile, float $speed, float $attackDamage, array $targetTypes = [], float $jumpHeight = 0.5)
     {
@@ -48,6 +49,9 @@ class MobAIComponent
         } else {
             $this->targetTypes = $targetTypes;
         }
+
+        // 初始化时保存AI数据
+        $this->saveAIData();
     }
 
     public function getEntity(): Living
@@ -80,9 +84,18 @@ class MobAIComponent
 
         if (!$entity instanceof Living) return;
 
+        // 应用原版生物特性
+        \MengBao\MEBMobAI\Trait\VanillaMobTraits::applyVanillaTraits($entity);
+
         $this->updateTargetCheck();
         $this->jumpCooldown--;
         $this->attackCooldown--;
+
+        // 击退冷却，避免AI立即覆盖击退效果
+        if ($this->knockbackCooldown > 0) {
+            $this->knockbackCooldown--;
+            return;
+        }
 
         // 更新愤怒计时器
         if ($this->isAngry) {
@@ -95,7 +108,12 @@ class MobAIComponent
 
         if ($this->fleeTimer > 0) {
             $this->fleeTimer--;
-            $this->fleeFromAttacker();
+            if ($this->fleeTimer <= 0) {
+                // 逃跑结束，恢复正常速度
+                $this->entity->setMovementSpeed($this->entity->getMovementSpeed() / 1.5);
+            } else {
+                $this->fleeFromAttacker();
+            }
             return;
         }
 
@@ -366,6 +384,10 @@ class MobAIComponent
             $this->target = $attacker;
             $this->entity->setTargetEntity($attacker);
             $this->fleeTimer = 100;
+
+            // 逃跑时提速（速度x1.5）
+            $normalSpeed = $this->entity->getMovementSpeed();
+            $this->entity->setMovementSpeed($normalSpeed * 1.5);
         }
     }
 
@@ -416,5 +438,74 @@ class MobAIComponent
     public function isAngry(): bool
     {
         return $this->isAngry;
+    }
+
+    /**
+     * 设置击退冷却
+     */
+    public function setKnockbackCooldown(int $ticks): void
+    {
+        $this->knockbackCooldown = $ticks;
+    }
+
+    /**
+     * 保存AI数据到实体的 NamedTag
+     */
+    public function saveAIData(): void
+    {
+        // 使用实体内部存储保存自定义数据
+        // 这些数据会在实体的 saveNBT() 时自动包含
+        $reflection = new \ReflectionClass($this->entity);
+
+        try {
+            // 尝试访问实体的私有属性来存储数据
+            $property = $reflection->getProperty('namedtag');
+            $property->setAccessible(true);
+            $nbt = $property->getValue($this->entity);
+
+            if ($nbt instanceof \pocketmine\nbt\tag\CompoundTag) {
+                $nbt->setByte("MEBMobAI_Hostile", $this->hostile ? 1 : 0);
+                $nbt->setFloat("MEBMobAI_Speed", $this->entity->getMovementSpeed());
+                $nbt->setFloat("MEBMobAI_AttackDamage", $this->entity->getAttributeMap()->get(Attribute::ATTACK_DAMAGE)?->getValue() ?? 0.0);
+                $nbt->setFloat("MEBMobAI_JumpHeight", $this->jumpHeight);
+                $nbt->setFloat("MEBMobAI_MaxHealth", $this->entity->getMaxHealth());
+            }
+        } catch (\ReflectionException $e) {
+            // 如果无法访问，静默失败
+            // 原版生物的属性修改将不会持久化
+        }
+    }
+
+    /**
+     * 从实体NBT加载AI数据
+     */
+    public static function loadFromNBT(Living $entity): ?array
+    {
+        $reflection = new \ReflectionClass($entity);
+
+        try {
+            $property = $reflection->getProperty('namedtag');
+            $property->setAccessible(true);
+            $nbt = $property->getValue($entity);
+
+            if (!($nbt instanceof \pocketmine\nbt\tag\CompoundTag)) {
+                return null;
+            }
+
+            // 检查是否有保存的AI数据
+            if ($nbt->getTag("MEBMobAI_Hostile") === null) {
+                return null;
+            }
+
+            return [
+                "hostile" => $nbt->getByte("MEBMobAI_Hostile", 0) === 1,
+                "speed" => $nbt->getFloat("MEBMobAI_Speed", 1.0),
+                "damage" => $nbt->getFloat("MEBMobAI_AttackDamage", 0.0),
+                "jump_height" => $nbt->getFloat("MEBMobAI_JumpHeight", 0.5),
+                "max_health" => $nbt->getFloat("MEBMobAI_MaxHealth", 20.0),
+            ];
+        } catch (\ReflectionException $e) {
+            return null;
+        }
     }
 }

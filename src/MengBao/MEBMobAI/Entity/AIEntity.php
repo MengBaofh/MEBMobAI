@@ -36,30 +36,57 @@ abstract class AIEntity extends Living
     {
         parent::initEntity($nbt);
 
-        // 从配置文件加载生物属性
-        $plugin = \MengBao\MEBMobAI\Main::getInstance();
-        if ($plugin !== null) {
-            $config = $plugin->getCustomAIConfig();
-            $mobKey = $this->getConfigKey();
+        // 优先从NBT恢复自定义属性（服务器重启后的恢复）
+        $hasNBTData = false;
 
-            // 获取生物配置，如果不存在则使用默认值
-            $speed = $config->getNested("{$mobKey}.speed", $config->get("default.speed", 1.0));
-            $attackDamage = $config->getNested("{$mobKey}.attack_damage", $config->get("default.attack_damage", 0.0));
-            $maxHealth = $config->getNested("{$mobKey}.max_health", $config->get("default.max_health", 20));
-            $jumpHeight = $config->getNested("{$mobKey}.jump_height", $config->get("default.jump_height", 0.5));
+        if ($nbt->getTag("MaxHealth") !== null) {
+            $this->setMaxHealth((int)$nbt->getFloat("MaxHealth", $this->getMaxHealth()));
+            $hasNBTData = true;
+        }
 
-            // 应用配置
-            $this->setMovementSpeed($speed);
+        if ($nbt->getTag("Health") !== null) {
+            $health = $nbt->getFloat("Health", $this->getHealth());
+            $this->setHealth(min($health, $this->getMaxHealth()));
+            $hasNBTData = true;
+        }
+
+        if ($nbt->getTag("MovementSpeed") !== null) {
+            $this->setMovementSpeed($nbt->getFloat("MovementSpeed", $this->getMovementSpeed()));
+            $hasNBTData = true;
+        }
+
+        if ($nbt->getTag("AttackDamage") !== null) {
+            $attackDamage = $nbt->getFloat("AttackDamage", 0.0);
             $this->getAttributeMap()->get(Attribute::ATTACK_DAMAGE)?->setValue($attackDamage);
-            $this->setMaxHealth((int)$maxHealth);
-            $this->setHealth($this->getMaxHealth());
-            $this->jumpVelocity = (float)$jumpHeight;
-        } else {
-            // 如果插件未加载，使用默认方法
-            $this->setMovementSpeed($this->getDefaultSpeed());
-            $this->getAttributeMap()->get(Attribute::ATTACK_DAMAGE)?->setValue($this->getDefaultAttackDamage());
-            $this->setMaxHealth($this->getDefaultMaxHealth());
-            $this->setHealth($this->getMaxHealth());
+            $hasNBTData = true;
+        }
+
+        // 如果没有NBT数据，从配置文件加载生物属性
+        if (!$hasNBTData) {
+            $plugin = \MengBao\MEBMobAI\Main::getInstance();
+            if ($plugin !== null) {
+                $config = $plugin->getCustomAIConfig();
+                $mobKey = $this->getConfigKey();
+
+                // 获取生物配置，如果不存在则使用默认值
+                $speed = $config->getNested("{$mobKey}.speed", $config->get("default.speed", 1.0));
+                $attackDamage = $config->getNested("{$mobKey}.attack_damage", $config->get("default.attack_damage", 0.0));
+                $maxHealth = $config->getNested("{$mobKey}.max_health", $config->get("default.max_health", 20));
+                $jumpHeight = $config->getNested("{$mobKey}.jump_height", $config->get("default.jump_height", 0.5));
+
+                // 应用配置
+                $this->setMovementSpeed($speed);
+                $this->getAttributeMap()->get(Attribute::ATTACK_DAMAGE)?->setValue($attackDamage);
+                $this->setMaxHealth((int)$maxHealth);
+                $this->setHealth($this->getMaxHealth());
+                $this->jumpVelocity = (float)$jumpHeight;
+            } else {
+                // 如果插件未加载，使用默认方法
+                $this->setMovementSpeed($this->getDefaultSpeed());
+                $this->getAttributeMap()->get(Attribute::ATTACK_DAMAGE)?->setValue($this->getDefaultAttackDamage());
+                $this->setMaxHealth($this->getDefaultMaxHealth());
+                $this->setHealth($this->getMaxHealth());
+            }
         }
     }
 
@@ -223,6 +250,27 @@ abstract class AIEntity extends Living
     }
 
     /**
+     * 保存实体数据到NBT
+     */
+    public function saveNBT(): CompoundTag
+    {
+        $nbt = parent::saveNBT();
+
+        // 保存自定义属性
+        $nbt->setFloat("MaxHealth", $this->getMaxHealth());
+        $nbt->setFloat("Health", $this->getHealth());
+        $nbt->setFloat("MovementSpeed", $this->getMovementSpeed());
+
+        $attackDamage = $this->getAttributeMap()->get(Attribute::ATTACK_DAMAGE)?->getValue() ?? 0.0;
+        $nbt->setFloat("AttackDamage", $attackDamage);
+
+        // 保存动作队列大小（仅统计）
+        $nbt->setInt("ActionQueueSize", count($this->actionQueue));
+
+        return $nbt;
+    }
+
+    /**
      * 实体tick更新
      */
     protected function entityBaseTick(int $tickDiff = 1): bool
@@ -230,6 +278,15 @@ abstract class AIEntity extends Living
         $hasUpdate = parent::entityBaseTick($tickDiff);
 
         if ($this->isAlive()) {
+            // 清除原版可能施加的运动，确保只受动作队列控制
+            // 如果没有动作队列在执行，才允许自然运动
+            if ($this->currentAction === null && count($this->actionQueue) === 0) {
+                // 没有动作时，允许重力和摩擦力
+            } else {
+                // 有动作时，防止原版AI干扰
+                // 保持垂直方向的重力，但清除可能的水平干扰
+            }
+
             // 更新持续行为
             if ($this->behavior !== null && method_exists($this->behavior, 'update')) {
                 $this->behavior->update();

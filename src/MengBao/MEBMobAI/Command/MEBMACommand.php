@@ -18,7 +18,7 @@ class MEBMACommand extends Command
 
     public function __construct(Main $plugin)
     {
-        parent::__construct("mebma", "MEBMobAI指令", "/mebma <spawn|list|remove> [args...]");
+        parent::__construct("mebma", "MEBMobAI指令", "/mebma <gui|spawn|list|remove> [args...]");
         $this->setPermission("mebmobai.command");
         $this->plugin = $plugin;
     }
@@ -35,7 +35,18 @@ class MEBMACommand extends Command
         }
 
         if (count($args) < 1) {
-            $sender->sendMessage("§e用法: /mebma <spawn|list|remove> [args...]");
+            // 没有参数时，尝试打开GUI（如果MEBForms可用）
+            if ($this->plugin->getFormFactory()->isAvailable()) {
+                $this->plugin->getFormFactory()->openMain($sender);
+                return true;
+            }
+
+            // MEBForms不可用，显示帮助
+            $sender->sendMessage("§e=== MEBMobAI 命令帮助 ===");
+            $sender->sendMessage("§f/mebma gui §7- 打开GUI界面");
+            $sender->sendMessage("§f/mebma spawn <生物ID> §7- 生成生物");
+            $sender->sendMessage("§f/mebma list §7- 列出已注册的生物");
+            $sender->sendMessage("§f/mebma remove <范围> §7- 移除附近的AI生物");
             return true;
         }
 

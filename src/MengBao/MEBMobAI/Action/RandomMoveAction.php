@@ -16,7 +16,7 @@ class RandomMoveAction extends Action
     private float $speed;
     private ?float $targetYaw = null;
 
-    public function __construct(float $speed = 1.0, int $duration = 60)
+    public function __construct(int $duration = 60, float $speed = 1.0)
     {
         $this->speed = $speed;
         $this->duration = $duration;
